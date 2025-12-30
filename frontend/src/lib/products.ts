@@ -1,3 +1,12 @@
+/**
+ * Product data types and utilities for the glamcart frontend.
+ *
+ * API Integration:
+ * - Backend endpoint: GET /api/products (to be implemented by backend service)
+ * - NEXT_PUBLIC_API_BASE_URL environment variable controls API location
+ * - Vercel-compatible: Uses NEXT_PUBLIC_ prefix to expose variables at build time
+ */
+
 import { PlaceHolderImages } from './placeholder-images';
 
 export type ProductColor = {
@@ -204,3 +213,64 @@ export const products: Product[] = [
 
 export const brands = [...new Set(products.map(p => p.brand))];
 export const categories = [...new Set(products.map(p => p.category))];
+
+/**
+ * Fetches products from the backend API.
+ * Falls back to local data if API is unavailable.
+ *
+ * Backend endpoint: GET /api/products
+ * Expected response: { data: Product[] } or { error: string }
+ *
+ * This function is server-safe and can be called from Server Components
+ * or async client-side functions (e.g., in useEffect).
+ *
+ * Vercel Compatibility:
+ * - Uses NEXT_PUBLIC_API_BASE_URL set at build/deployment time
+ * - No Node.js-specific code; compatible with serverless functions
+ * - Graceful fallback for development or backend unavailability
+ */
+export async function fetchProducts(): Promise<Product[]> {
+  try {
+    // Use centralized API utility to fetch from backend
+    // Requires process.env.NEXT_PUBLIC_API_BASE_URL to be set
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+    if (!apiBaseUrl) {
+      console.warn(
+        'NEXT_PUBLIC_API_BASE_URL not configured. Using local product data. ' +
+        'Set NEXT_PUBLIC_API_BASE_URL in .env.local for backend integration.'
+      );
+      return products;
+    }
+
+    const response = await fetch(`${apiBaseUrl}/api/products`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // Cache: use default (revalidate on each request for fresh data)
+      // For static generation, set: cache: 'force-cache'
+      // For ISR (Incremental Static Regeneration), add: next: { revalidate: 60 }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend API error: ${response.status}`);
+    }
+
+    const { data } = await response.json();
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    console.warn('Unexpected API response format. Using local product data.');
+    return products;
+  } catch (error) {
+    console.error(
+      'Failed to fetch products from backend API:',
+      error instanceof Error ? error.message : error
+    );
+    // Graceful fallback to local data
+    return products;
+  }
+}

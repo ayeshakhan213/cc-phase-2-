@@ -1,10 +1,28 @@
 'use client';
 
+/**
+ * Backend Integration Demo Page
+ * 
+ * This page demonstrates the 3-tier architecture:
+ * 1. Presentation Tier (this Next.js frontend) - deployed on Vercel
+ * 2. Application Tier (backend service with Genkit AI) - deployed on DigitalOcean VM with Docker
+ * 3. Data Tier (MongoDB Atlas) - cloud database
+ * 
+ * API Integration:
+ * - This page uses Genkit AI flows for demonstration (development feature)
+ * - Production data fetching uses centralized API utility (src/lib/api.ts)
+ * - Backend API base URL is set via NEXT_PUBLIC_API_BASE_URL environment variable
+ * - All API calls are Vercel-compatible (no Node.js-specific code)
+ * 
+ * For live demonstration: Backend must be running on DigitalOcean VM
+ * For local development: Set NEXT_PUBLIC_API_BASE_URL=http://localhost:3001 in .env.local
+ */
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { processQuery } from '@/ai/flows/service-layer';
+import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -33,8 +51,16 @@ export default function BackendPage() {
     setError(null);
     setResponse('');
     try {
-      const result = await processQuery(values);
-      setResponse(result.response);
+      const result = await api.post('/api/ai/query', { query: values.query });
+      if (result.error) {
+        setError(result.error);
+      } else if (result.data && result.data.response) {
+        setResponse(result.data.response);
+      } else if (result.data) {
+        setResponse(result.data);
+      } else {
+        setError('Unexpected response from backend.');
+      }
     } catch (err) {
       setError('An error occurred while processing your query. Please try again.');
       console.error(err);

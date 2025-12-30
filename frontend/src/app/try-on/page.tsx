@@ -1,26 +1,64 @@
 'use client';
 
-import { useState, useRef, ChangeEvent } from 'react';
+import { useState, useRef, ChangeEvent, useEffect } from 'react';
 import Image from 'next/image';
-import { virtualTryOnColorMatch } from '@/ai/flows/virtual-try-on-color-matching';
-import { products } from '@/lib/products';
+import api from '@/lib/api';
 import type { Product, ProductColor } from '@/lib/products';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, Sparkles, Upload, Wand2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { apiGet } from '@/lib/api';
 
-const lipstickProducts = products.filter(p => p.category === 'Lipstick');
-
+/**
+ * Client Component for Virtual Try-On functionality.
+ * 
+ * Data Flow:
+ * - Fetches lipstick products from backend API via useEffect
+ * - Backend endpoint: GET /api/products (filters on frontend for lipsticks)
+ * - Falls back to empty list if API unavailable (graceful degradation)
+ * - User interactions (image upload, color selection) are client-side only
+ * - No Node.js APIs or filesystem writes in this component
+ * 
+ * Vercel Compatibility:
+ * - useEffect runs in browser only (safe for Vercel Edge Functions)
+ * - API calls use NEXT_PUBLIC_API_BASE_URL
+ */
 export default function TryOnPage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [modifiedImage, setModifiedImage] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [lipstickProducts, setLipstickProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Fetch lipstick products from backend API on component mount
+  useEffect(() => {
+    const fetchLipsticks = async () => {
+      try {
+        const response = await apiGet<Product[]>('/api/products');
+        if (response.data) {
+          const lipsticks = response.data.filter(p => p.category === 'Lipstick');
+          setLipstickProducts(lipsticks);
+        } else if (response.error) {
+          console.warn('Failed to fetch products:', response.error);
+          // Graceful degradation: show empty list, user can still proceed
+          setLipstickProducts([]);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setLipstickProducts([]);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+
+    fetchLipsticks();
+  }, []);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -53,11 +91,22 @@ export default function TryOnPage() {
     }
     setIsLoading(true);
     try {
-      const result = await virtualTryOnColorMatch({
-        photoDataUri: uploadedImage,
-        productColorHex: selectedColor.hex,
-      });
-      setModifiedImage(result.modifiedPhotoDataUri);
+      const result = await api.post('/api/tryon/apply', { photoDataUri: uploadedImage, productColorHex: selectedColor.hex });
+      if (result.error) {
+        toast({
+          variant: 'destructive',
+          title: 'AI Error',
+          description: result.error,
+        });
+      } else if (result.data && result.data.modifiedPhotoDataUri) {
+        setModifiedImage(result.data.modifiedPhotoDataUri as string);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'AI Error',
+          description: 'Unexpected response from backend',
+        });
+      }
     } catch (error) {
       console.error(error);
       toast({
@@ -147,30 +196,38 @@ export default function TryOnPage() {
             </div>
             <ScrollArea className="flex-grow">
               <div className="p-4 space-y-4">
-                {lipstickProducts.map(product => (
-                  <div key={product.id}>
-                    <button
-                      className="text-left w-full"
-                      onClick={() => setSelectedProduct(product)}
-                    >
-                      <p className="font-medium">{product.name}</p>
-                      <p className="text-sm text-muted-foreground">{product.brand}</p>
-                    </button>
-                    {selectedProduct?.id === product.id && (
-                      <div className="grid grid-cols-5 gap-2 mt-2">
-                        {product.colors.map(color => (
-                          <button
-                            key={color.hex}
-                            onClick={() => setSelectedColor(color)}
-                            className={`h-10 w-10 rounded-md border-2 ${selectedColor?.hex === color.hex ? 'border-primary' : 'border-transparent'}`}
-                            style={{ backgroundColor: color.hex }}
-                            aria-label={color.name}
-                          />
-                        ))}
-                      </div>
-                    )}
+                {isLoadingProducts ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ))}
+                ) : lipstickProducts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No products available. Using local data...</p>
+                ) : (
+                  lipstickProducts.map(product => (
+                    <div key={product.id}>
+                      <button
+                        className="text-left w-full"
+                        onClick={() => setSelectedProduct(product)}
+                      >
+                        <p className="font-medium">{product.name}</p>
+                        <p className="text-sm text-muted-foreground">{product.brand}</p>
+                      </button>
+                      {selectedProduct?.id === product.id && (
+                        <div className="grid grid-cols-5 gap-2 mt-2">
+                          {product.colors.map(color => (
+                            <button
+                              key={color.hex}
+                              onClick={() => setSelectedColor(color)}
+                              className={`h-10 w-10 rounded-md border-2 ${selectedColor?.hex === color.hex ? 'border-primary' : 'border-transparent'}`}
+                              style={{ backgroundColor: color.hex }}
+                              aria-label={color.name}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </ScrollArea>
             <div className="p-4 border-t mt-auto">

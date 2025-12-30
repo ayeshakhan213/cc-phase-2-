@@ -14,8 +14,18 @@ import { ProductCard } from '@/components/product/product-card';
 import { products } from '@/lib/products';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
+/**
+ * Server Component for home page.
+ * 
+ * Vercel Compatibility:
+ * - Uses local product data for build-time rendering
+ * - No API calls during build to avoid external dependencies
+ * - Featured products displayed are pre-filtered from static data
+ */
 export default function Home() {
-  const featuredProducts = products.filter(p => p.rating >= 4.8).slice(0, 8);
+  // Use local product data to avoid API calls during build
+  const allProducts = products;
+  const featuredProducts = allProducts.filter(p => p.rating >= 4.8).slice(0, 8);
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-background');
 
   return (

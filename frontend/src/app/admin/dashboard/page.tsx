@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Card,
   CardContent,
@@ -9,6 +11,7 @@ import {
   BarChart,
   CartesianGrid,
   XAxis,
+  YAxis,
   Bar,
   Line,
   LineChart,

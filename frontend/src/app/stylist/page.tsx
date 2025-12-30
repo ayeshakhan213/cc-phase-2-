@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { getPersonalizedRecommendations } from '@/ai/flows/personalized-product-recommendations';
+import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -36,8 +36,14 @@ export default function StylistPage() {
     setError(null);
     setRecommendations([]);
     try {
-      const result = await getPersonalizedRecommendations(values);
-      setRecommendations(result.recommendations);
+      const result = await api.post('/api/recommendations', values);
+      if (result.error) {
+        setError(result.error);
+      } else if (result.data && result.data.recommendations) {
+        setRecommendations(result.data.recommendations);
+      } else {
+        setError('Unexpected response from backend');
+      }
     } catch (err) {
       setError('Sorry, our AI stylist is taking a break. Please try again later.');
       console.error(err);
