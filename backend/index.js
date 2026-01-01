@@ -1,8 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
+require('dotenv').config();
 
 const { products } = require('./products');
 const { ai, processQuery } = require('./genkit');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -10,8 +13,20 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Health
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI)
+.then(() => {
+  console.log('✓ MongoDB connected successfully');
+})
+.catch((err) => {
+  console.warn('⚠ MongoDB not connected (optional):', err.message);
+});
+
+// Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// Authentication routes
+app.use('/api/auth', authRoutes);
 
 // Products endpoints
 app.get('/api/products', (req, res) => {
