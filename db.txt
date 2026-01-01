@@ -1,0 +1,1 @@
+mongodb+srv://glamuser:glamuser@glamcartdb.ctqpibd.mongodb.net/?appName=GlamCartDB
