@@ -13,6 +13,29 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`\n📨 [${timestamp}] ${req.method} ${req.path}`);
+  
+  if (Object.keys(req.query).length > 0) {
+    console.log(`   Query: ${JSON.stringify(req.query)}`);
+  }
+  
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log(`   Body: ${JSON.stringify(req.body)}`);
+  }
+  
+  // Log response
+  const originalSend = res.send;
+  res.send = function(data) {
+    console.log(`   ✓ Response: ${res.statusCode}`);
+    return originalSend.call(this, data);
+  };
+  
+  next();
+});
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
 .then(() => {
@@ -30,20 +53,27 @@ app.use('/api/auth', authRoutes);
 
 // Products endpoints
 app.get('/api/products', (req, res) => {
+  console.log(`   → Fetching ${products.length} products`);
   res.json({ data: products });
 });
 
 app.get('/api/products/:id', (req, res) => {
   const p = products.find(x => x.id === req.params.id);
+  console.log(`   → Looking for product ID: ${req.params.id} - ${p ? 'Found' : 'Not found'}`);
   if (!p) return res.status(404).json({ error: 'Not found' });
   res.json({ data: p });
 });
 
 app.post('/api/products/search', (req, res) => {
   const { q } = req.body || {};
-  if (!q) return res.json({ data: products });
+  console.log(`   → Searching products with query: "${q}"`);
+  if (!q) {
+    console.log(`   → No query provided, returning all ${products.length} products`);
+    return res.json({ data: products });
+  }
   const lower = String(q).toLowerCase();
   const filtered = products.filter(p => p.name.toLowerCase().includes(lower) || p.brand.toLowerCase().includes(lower) || p.category.toLowerCase().includes(lower));
+  console.log(`   → Found ${filtered.length} matching products`);
   res.json({ data: filtered });
 });
 

@@ -146,11 +146,15 @@ export default function TryOnPage() {
           const faceWidth = maxX - minX;
           const faceHeight = maxY - minY;
 
+          // Exclude neck by limiting height to upper 75% of detected region
+          const faceCenterY = minY + faceHeight * 0.5;
+          const limitedHeight = faceHeight * 0.75;
+
           // Add padding
-          let faceMinX = Math.max(0, minX - faceWidth * 0.1);
-          let faceMaxX = Math.min(canvas.width, maxX + faceWidth * 0.1);
-          let faceMinY = Math.max(0, minY - faceHeight * 0.1);
-          let faceMaxY = Math.min(canvas.height, maxY + faceHeight * 0.05);
+          let faceMinX = Math.max(0, minX - faceWidth * 0.15);
+          let faceMaxX = Math.min(canvas.width, maxX + faceWidth * 0.15);
+          let faceMinY = Math.max(0, minY - faceHeight * 0.15);
+          let faceMaxY = Math.min(canvas.height, minY + limitedHeight);
 
           const faceWidthActual = faceMaxX - faceMinX;
           const faceHeightActual = faceMaxY - faceMinY;
@@ -184,26 +188,27 @@ export default function TryOnPage() {
             const relX = (x - faceMinX) / faceWidthActual;
 
             if (productCategory === 'Lipstick') {
-              // Apply to lips area (lower center)
-              if (relY > 0.65 && relY < 0.88 && relX > 0.2 && relX < 0.8 &&
+              // Apply to lips area - lower center, but more restrictive
+              // Lips are typically in bottom 25% of face, center 60% of width
+              if (relY > 0.70 && relY < 0.92 && relX > 0.25 && relX < 0.75 &&
                   (isSkinTone || isNaturalLips)) {
                 shouldApply = true;
-                blendFactor = isNaturalLips ? 0.8 : 0.65;
+                blendFactor = isNaturalLips ? 0.85 : 0.70;
               }
             } else if (productCategory === 'Eyeshadow') {
               // Apply to eyes area (upper portion)
-              if (relY > 0.15 && relY < 0.45 && relX > 0.1 && relX < 0.9 && isSkinTone) {
+              if (relY > 0.18 && relY < 0.40 && relX > 0.15 && relX < 0.85 && isSkinTone) {
                 shouldApply = true;
-                blendFactor = 0.65;
+                blendFactor = 0.70;
               }
             } else {
               // Default: lips and cheeks
-              if (relY > 0.65 && relY < 0.88 && relX > 0.2 && relX < 0.8 && (isSkinTone || isNaturalLips)) {
+              if (relY > 0.70 && relY < 0.92 && relX > 0.25 && relX < 0.75 && (isSkinTone || isNaturalLips)) {
                 shouldApply = true;
-                blendFactor = isNaturalLips ? 0.8 : 0.65;
-              } else if (relY > 0.35 && relY < 0.65 && (relX < 0.2 || relX > 0.8) && isSkinTone) {
+                blendFactor = isNaturalLips ? 0.85 : 0.70;
+              } else if (relY > 0.38 && relY < 0.68 && (relX < 0.15 || relX > 0.85) && isSkinTone) {
                 shouldApply = true;
-                blendFactor = 0.35;
+                blendFactor = 0.40;
               }
             }
 
