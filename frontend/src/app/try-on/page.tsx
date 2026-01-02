@@ -10,10 +10,16 @@ import { Loader2, Sparkles, Upload, Wand2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { apiGet } from '@/lib/api';
+import { applyLipstickWithMediaPipe, initializeFaceLandmarker, cleanup } from '@/lib/mediapipe-utils';
 
 /**
  * Client Component for Virtual Try-On functionality with MediaPipe Face Mesh.
  * Uses AI-powered facial landmark detection for accurate makeup application.
+ * Features:
+ * - MediaPipe Face Mesh for precise lip detection (default for lipsticks)
+ * - Fallback color-based detection for other products
+ * - Live backend API integration for product data
+ * - Canvas-based image processing for fast rendering
  */
 export default function TryOnPage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -23,8 +29,31 @@ export default function TryOnPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [makeupProducts, setMakeupProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [mediapipenInitialized, setMediaPipeInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Initialize MediaPipe on component mount
+  useEffect(() => {
+    const initMediaPipe = async () => {
+      try {
+        if (process.env.NEXT_PUBLIC_ENABLE_MEDIAPIPE === 'true') {
+          await initializeFaceLandmarker();
+          setMediaPipeInitialized(true);
+          console.log('MediaPipe Face Mesh initialized');
+        }
+      } catch (error) {
+        console.warn('MediaPipe initialization failed, will use fallback method:', error);
+        setMediaPipeInitialized(false);
+      }
+    };
+
+    initMediaPipe();
+
+    return () => {
+      cleanup();
+    };
+  }, []);
 
   // Fetch makeup products (lipsticks and eyeshadows) from backend API on component mount
   useEffect(() => {
@@ -81,8 +110,19 @@ export default function TryOnPage() {
     }
   };
 
-  // Apply makeup using TensorFlow Face Detection with canvas manipulation
+  // Apply makeup - use MediaPipe for lipsticks, fallback method for others
   const applyColorEffect = async (imageDataUri: string, colorHex: string, productCategory?: string): Promise<string> => {
+    // Use MediaPipe for lipstick when available
+    if (mediapipenInitialized && productCategory === 'Lipstick') {
+      try {
+        return await applyLipstickWithMediaPipe(imageDataUri, colorHex);
+      } catch (error) {
+        console.warn('MediaPipe lipstick application failed, falling back to color detection:', error);
+        // Fall through to color-based method
+      }
+    }
+
+    // Fallback: Use color-based detection for eyeshadows or when MediaPipe unavailable
     return new Promise(async (resolve) => {
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
@@ -100,7 +140,7 @@ export default function TryOnPage() {
           // Draw original image
           ctx.drawImage(img, 0, 0);
 
-          // Simple face detection using color analysis
+          // Simple face detection using color analysis (fallback)
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
 

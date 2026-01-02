@@ -1,0 +1,8 @@
+# Git ignore for root directory
+# Only node_modules - actual project gitignore is in backend/
+
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files are in individual folders with their own .gitignore

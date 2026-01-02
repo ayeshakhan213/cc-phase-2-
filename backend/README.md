@@ -1,40 +1,365 @@
-# Backend Docker guide
+# GlamCart - Virtual Makeup Try-On Application
 
-This folder should contain your backend application (Node/Express, Fastify, etc.).
+A full-stack application for virtual lipstick try-on using MediaPipe face mesh detection and canvas-based image processing.
 
-Suggested structure:
+## Project Overview
 
-- `backend/package.json` — package manifest
-- `backend/index.js` or `backend/src/` — source
-- `backend/Dockerfile` — container image (this file)
+This is a production-ready virtual makeup try-on application with:
+- **Frontend**: Next.js 15 on Vercel (TypeScript, React 19, MediaPipe integration)
+- **Backend**: Express.js on DigitalOcean VM (Docker, MongoDB Atlas)
+- **Face Detection**: MediaPipe Face Mesh with 478 facial landmarks
+- **Image Processing**: Canvas-based real-time color blending
 
-How to build locally (from repo root):
+## Project Structure
 
-```powershell
-docker build -t your-dockerhub-username/glamcart-backend:local -f backend/Dockerfile ./backend
-docker run -e PORT=8080 -p 8080:8080 your-dockerhub-username/glamcart-backend:local
+```
+cc-phase-2-/
+├── frontend/                   # Next.js app (Vercel deployment)
+│   ├── src/
+│   │   ├── app/try-on/        # Virtual try-on feature
+│   │   ├── lib/
+│   │   │   ├── api.ts         # Backend API client
+│   │   │   └── mediapipe-utils.ts  # Face mesh integration
+│   │   └── components/
+│   ├── .env.local/.env.production  # Environment configs
+│   ├── DEPLOYMENT.md           # Frontend guide
+│   └── package.json
+│
+├── backend/                    # Express.js app (DigitalOcean)
+│   ├── .github/workflows/      # CI/CD pipeline
+│   ├── routes/                 # API endpoints
+│   ├── models/                 # MongoDB schemas
+│   ├── Dockerfile
+│   ├── docker-compose.db.yml
+│   ├── DEPLOYMENT.md           # Backend guide
+│   └── package.json
+│
+└── README.md                   # This file
 ```
 
-CI/CD
+## Tech Stack
 
-The repository includes a GitHub Actions workflow `.github/workflows/backend-docker-publish.yml` that builds and pushes the image to Docker Hub.
+**Frontend**:
+- Next.js 15, React 19, TypeScript
+- TailwindCSS + Shadcn/ui
+- MediaPipe Face Mesh (facial landmarks)
+- Canvas API (image processing)
 
-Set these repository secrets before using the workflow:
+**Backend**:
+- Express.js, Node.js 20
+- MongoDB Atlas (cloud database)
+- JWT authentication, bcryptjs
+- Docker containerization
 
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_ACCESS_TOKEN` (or `DOCKERHUB_PASSWORD` if you prefer)
+## Quick Start
 
-DigitalOcean VM (example)
-
-On your DO VM (Docker installed), pull and run the image:
-
-```powershell
-docker pull <your-dockerhub-username>/glamcart-backend:latest
-docker run -d --name glamcart-backend -p 80:8080 \
-  -e DATABASE_URL='postgres://user:pass@db-host:5432/dbname' \
-  <your-dockerhub-username>/glamcart-backend:latest
+### Frontend Development
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev  # http://localhost:9002
 ```
 
-Database
+### Backend Development
+```bash
+cd backend
+npm install
+npm run dev  # http://localhost:3001
+```
 
-We recommend using a separate Postgres instance — either a managed DB (DigitalOcean Managed Databases) or a separate container on the same VM. See `docker-compose.db.yml` at repo root for a sample local DB setup.
+## Deployment
+
+**Frontend** → [Frontend Deployment Guide](./frontend/DEPLOYMENT.md)
+- Deploy to Vercel (auto from main branch)
+- Environment: `NEXT_PUBLIC_API_BASE_URL=https://api.yourdomain.com`
+
+**Backend** → [Backend Deployment Guide](./backend/DEPLOYMENT.md)
+- Deploy to DigitalOcean VM with Docker
+- GitHub Actions auto-builds and pushes images
+- Configure: `MONGODB_URI`, `JWT_SECRET`, `CORS_ORIGIN`
+
+## Frontend Setup & Deployment
+
+### Prerequisites
+- Node.js 20+ (recommended)
+- npm or yarn package manager
+- Git for version control
+
+### Environment Configuration
+
+The frontend requires a backend API URL to fetch products, makeup models, and other dynamic data. This is configured via the `NEXT_PUBLIC_API_BASE_URL` environment variable.
+
+**Why `NEXT_PUBLIC_` prefix?**
+- Vercel needs to inject environment variables at build time for the browser
+- Client components cannot access secret environment variables (use `NEXT_PUBLIC_` prefix)
+- Server components can use both `NEXT_PUBLIC_` and secret variables
+- The backend URL is public information; it's safe to expose
+
+**Environment Files:**
+- `.env.local` – Local development (add to `.gitignore`)
+- `.env.example` – Template for team members
+- Vercel dashboard – Production environment variables
+
+### Local Development
+
+1. **Clone the repository and navigate to frontend:**
+   ```bash
+   git clone https://github.com/yourusername/glamcartapp.git
+   cd glamcartapp/frontend
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables:**
+   - Copy `.env.example` to `.env.local`:
+     ```bash
+     cp .env.example .env.local
+     ```
+   - Edit `.env.local` and set `NEXT_PUBLIC_API_BASE_URL`:
+     ```env
+     # For local backend development:
+     NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+
+     # For deployed backend:
+     # NEXT_PUBLIC_API_BASE_URL=https://api.glamcart.com
+     ```
+
+4. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+   - Frontend runs on `http://localhost:9002`
+   - Open in browser: http://localhost:9002
+
+5. **Build for production:**
+   ```bash
+   npm run build
+   ```
+   - Tests the build process (same as Vercel)
+   - Output: `.next/` directory
+
+### Key Frontend Features
+
+1. **Product Listing**
+   - Server Component that fetches from backend API
+   - Graceful fallback to local data if API unavailable
+   - Real-time product filtering and search
+
+2. **Virtual Try-On**
+   - Client Component for image upload and makeup application
+   - Uses Genkit AI flows (running on backend)
+   - Fetches product data via centralized API utility
+
+3. **Shopping Cart**
+   - Client Component with Context API
+   - Persists to browser's `localStorage`
+   - No server-side session needed (Vercel compatible)
+
+4. **Centralized API Integration**
+   - `src/lib/api.ts` – All HTTP requests go through this utility
+   - Consistent error handling and JSON parsing
+   - Server Components: can use both internal and external APIs
+   - Client Components: can only call external APIs (via NEXT_PUBLIC_API_BASE_URL)
+
+### API Endpoints (Backend to Implement)
+
+The frontend expects the following REST endpoints from the backend:
+
+- `GET /api/products` – Fetch all products (lipsticks, eyeshadows, etc.)
+- `GET /api/products/:id` – Fetch single product details
+- `GET /api/tryon/models` – Fetch available try-on models/templates
+- `POST /api/tryon/apply` – Apply virtual makeup to image (uses Genkit flow)
+- `GET /api/recommendations` – Get AI-powered product recommendations
+
+**Note:** These endpoints are placeholder paths. The backend service should implement them according to project requirements.
+
+### Building & Testing
+
+**Verify the build works locally:**
+```bash
+npm run build
+npm run start
+```
+- Builds the project (same process as Vercel)
+- Starts production server on `http://localhost:3000`
+
+**Linting and type checking:**
+```bash
+npm run lint
+npm run typecheck
+```
+
+## Vercel Deployment
+
+### Prerequisites
+- GitHub repository with this code
+- Vercel account (free tier available)
+- Backend deployed and accessible
+
+### Steps to Deploy
+
+1. **Push code to GitHub:**
+   ```bash
+   git add .
+   git commit -m "Ready for Vercel deployment"
+   git push origin main
+   ```
+
+2. **Connect to Vercel:**
+   - Go to https://vercel.com
+   - Click "New Project"
+   - Select your GitHub repository
+   - Vercel auto-detects Next.js configuration
+
+3. **Set Environment Variables:**
+   - In Vercel dashboard: Project Settings → Environment Variables
+   - Add `NEXT_PUBLIC_API_BASE_URL`:
+     ```
+     Name: NEXT_PUBLIC_API_BASE_URL
+     Value: https://api.glamcart.com (or your backend URL)
+     Environments: Production, Preview, Development
+     ```
+
+4. **Deploy:**
+   - Click "Deploy"
+   - Vercel builds and deploys automatically
+   - Production URL: `https://your-project.vercel.app`
+
+### Continuous Deployment
+
+- Push to `main` branch → Automatic production deployment
+- Push to other branches → Preview deployment (for testing)
+- Environment variables are automatically injected at build time
+
+## Code Quality & Best Practices
+
+### No Node.js APIs in Client Components
+- ✅ Safe: `useEffect`, `useState`, `fetch()`, `localStorage`
+- ❌ Avoid: `fs.readFile()`, `require()`, `process.env` (without NEXT_PUBLIC_)
+
+### Server vs Client Components
+- **Server Components**: Fetch data, connect to databases, use secrets
+- **Client Components**: User interactions, state management, real-time features
+
+### API Error Handling
+- Centralized utility gracefully handles network errors
+- Fallback to local data if backend unavailable
+- User-friendly error messages in UI
+
+## Team Responsibilities & Structure
+
+### Frontend Team
+- **Component Development**: UI components in `src/components/`
+- **Pages & Routing**: In `src/app/` following Next.js App Router
+- **State Management**: Cart context in `src/context/`
+- **API Integration**: Centralized in `src/lib/api.ts`
+
+### Backend Team
+- **REST API**: Implement endpoints expected by frontend
+- **Database**: MongoDB with Mongoose or similar
+- **Genkit Flows**: AI processing (recommendations, virtual try-on)
+- **Docker**: Containerize backend for DigitalOcean deployment
+
+### DevOps/Infrastructure
+- **Backend Deployment**: DigitalOcean VM, Docker, MongoDB Atlas connection
+- **CI/CD**: GitHub Actions for automated testing & deployment
+- **Monitoring**: Set up logging and error tracking
+
+## Important Notes for Vercel Compatibility
+
+1. **No Filesystem Writes**: Backend APIs must handle data persistence
+2. **Serverless Functions**: Backend should be stateless or use external databases
+3. **Build Time Environment**: Set `NEXT_PUBLIC_` variables before build
+4. **CORS Handling**: Backend must allow requests from Vercel domain
+5. **Cold Starts**: Backend APIs may have brief delays after inactivity
+
+## Troubleshooting
+
+### "NEXT_PUBLIC_API_BASE_URL not configured" Warning
+- Set `NEXT_PUBLIC_API_BASE_URL` in `.env.local`
+- Restart dev server: `npm run dev`
+
+### Backend API calls failing
+- Verify backend is running: `curl http://localhost:3001/api/products`
+- Check `NEXT_PUBLIC_API_BASE_URL` matches backend address
+- Ensure backend allows CORS requests
+
+### Products not loading (fallback to local data)
+- Check browser console for network errors
+- Verify backend `/api/products` endpoint returns valid JSON
+- Inspect network tab in DevTools
+
+## Repository Structure
+
+```
+glamcartapp/
+├── frontend/                # This Next.js application
+│   ├── src/
+│   │   ├── app/            # Next.js App Router pages & layouts
+│   │   ├── components/     # React components (UI, product, layout)
+│   │   ├── context/        # State management (cart context)
+│   │   ├── hooks/          # Custom React hooks
+│   │   ├── lib/
+│   │   │   ├── api.ts      # Centralized API utility
+│   │   │   ├── products.ts # Product types & fetch function
+│   │   │   └── utils.ts    # Utility functions
+│   │   └── ai/             # Genkit AI flows
+│   ├── .env.example        # Environment template
+│   ├── .env.local          # (Local only, .gitignore)
+│   ├── next.config.ts      # Next.js configuration
+│   ├── tsconfig.json       # TypeScript configuration
+│   ├── vercel.json         # Vercel deployment config
+│   └── package.json        # Dependencies
+├── backend/                # Separate backend service
+└── database/               # Database configuration files
+```
+
+## Useful Commands
+
+```bash
+# Development
+npm run dev              # Start dev server with Turbopack
+npm run genkit:dev       # Start Genkit AI flows in dev mode
+npm run genkit:watch     # Watch Genkit files for changes
+
+# Production
+npm run build            # Build for production
+npm run start            # Start production server
+npm run lint             # Run ESLint
+npm run typecheck        # Check TypeScript types
+
+# Deployment
+# Vercel: Connected via GitHub, auto-deploys on git push
+# Local: npm run build && npm run start
+```
+
+## Browser Compatibility
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
+
+## Performance Tips
+- Images are optimized with Next.js Image component
+- Unused CSS is purged with Tailwind CSS
+- Server Components reduce JavaScript shipped to browser
+- Dynamic imports for heavy components
+
+## License
+Open Source (MIT)
+
+## Contact & Support
+For issues or questions:
+1. Check GitHub Issues
+2. Review frontend documentation in `frontend/docs/`
+3. Contact the frontend team lead
+
+---
+
+**Last Updated**: December 30, 2025  
+**Vercel Deployment Status**: Ready for production  
+**Backend Integration**: API endpoints to be implemented by backend team
