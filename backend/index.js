@@ -1,126 +1,21 @@
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
 require('dotenv').config();
-
-const { products } = require('./products');
-const { ai, processQuery } = require('./genkit');
-const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json());
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch(err => console.error("❌ MongoDB connection error:", err));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`\n📨 [${timestamp}] ${req.method} ${req.path}`);
-  
-  if (Object.keys(req.query).length > 0) {
-    console.log(`   Query: ${JSON.stringify(req.query)}`);
-  }
-  
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log(`   Body: ${JSON.stringify(req.body)}`);
-  }
-  
-  // Log response
-  const originalSend = res.send;
-  res.send = function(data) {
-    console.log(`   ✓ Response: ${res.statusCode}`);
-    return originalSend.call(this, data);
-  };
-  
-  next();
+// Root route
+app.get('/', (req, res) => {
+  res.send('🎉 Glamcart Backend is Running!');
 });
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
-.then(() => {
-  console.log('✓ MongoDB connected successfully');
-})
-.catch((err) => {
-  console.warn('⚠ MongoDB not connected (optional):', err.message);
-});
-
-// Health check
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
-
-// Authentication routes
-app.use('/api/auth', authRoutes);
-
-// Products endpoints
-app.get('/api/products', (req, res) => {
-  console.log(`   → Fetching ${products.length} products`);
-  res.json({ data: products });
-});
-
-app.get('/api/products/:id', (req, res) => {
-  const p = products.find(x => x.id === req.params.id);
-  console.log(`   → Looking for product ID: ${req.params.id} - ${p ? 'Found' : 'Not found'}`);
-  if (!p) return res.status(404).json({ error: 'Not found' });
-  res.json({ data: p });
-});
-
-app.post('/api/products/search', (req, res) => {
-  const { q } = req.body || {};
-  console.log(`   → Searching products with query: "${q}"`);
-  if (!q) {
-    console.log(`   → No query provided, returning all ${products.length} products`);
-    return res.json({ data: products });
-  }
-  const lower = String(q).toLowerCase();
-  const filtered = products.filter(p => p.name.toLowerCase().includes(lower) || p.brand.toLowerCase().includes(lower) || p.category.toLowerCase().includes(lower));
-  console.log(`   → Found ${filtered.length} matching products`);
-  res.json({ data: filtered });
-});
-
-// AI query endpoint (wraps service-layer flow)
-app.post('/api/ai/query', async (req, res) => {
-  const { query } = req.body || {};
-  if (!query) return res.status(400).json({ error: 'Missing query in body' });
-
-  try {
-    const result = await processQuery({ query });
-    res.json({ data: result });
-  } catch (err) {
-    console.error('AI query failed', err);
-    res.status(500).json({ error: 'AI processing failed' });
-  }
-});
-
-// Simple recommendation and try-on stubs
-app.get('/api/recommendations', (req, res) => {
-  // Return top-rated sample recommendations
-  const recs = products.slice(0, 4);
-  res.json({ data: recs });
-});
-
-app.post('/api/recommendations', (req, res) => {
-  // Accepts { skinType, preferences } and returns a simple recommendation list
-  const { skinType, preferences } = req.body || {};
-  // Simple heuristic: return first 4 products with a friendly message
-  const recs = products.slice(0, 4).map(p => `${p.name} — ${p.brand}`);
-  res.json({ data: { recommendations: recs } });
-});
-
-app.post('/api/tryon/apply', (req, res) => {
-  // In a real service this would run an ML model. For now, echo back the uploaded image as the "modified" image.
-  const { photoDataUri, productColorHex } = req.body || {};
-  if (!photoDataUri || !productColorHex) return res.status(400).json({ error: 'Missing photoDataUri or productColorHex' });
-
-  // TODO: integrate real AI try-on model. For demo, return the same photo with a small tag appended.
-  const modified = photoDataUri; // placeholder
-  res.json({ data: { modifiedPhotoDataUri: modified } });
-});
-
-app.post('/api/orders', (req, res) => {
-  // In a real app, persist order to DB. Here we simulate success.
-  res.status(201).json({ data: { orderId: 'order_' + Date.now() } });
-});
-
+// Start server
 app.listen(PORT, () => {
   console.log(`Glamcart backend listening on port ${PORT}`);
 });
